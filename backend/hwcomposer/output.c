@@ -8,6 +8,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdbool.h>
 
 #include <sys/param.h>
 #include <sys/cdefs.h> // for __BEGIN_DECLS/__END_DECLS found in sync.h
@@ -24,6 +27,15 @@
 
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
+
+struct wlr_hwcomposer_output_hwc2
+{
+        struct wlr_hwcomposer_output output;
+
+        hwc2_compat_display_t *hwc2_display;
+        hwc2_compat_layer_t *hwc2_layer;
+        int hwc2_last_present_fence;
+};
 
 static void schedule_frame(struct wlr_hwcomposer_output *output) {
 	int64_t time, display_refresh, next_vsync, scheduled_next;
@@ -66,36 +78,63 @@ static void schedule_frame(struct wlr_hwcomposer_output *output) {
 	}
 }
 
+static struct wlr_hwcomposer_output_hwc2 *hwc2_output_from_base(struct wlr_hwcomposer_output *output)
+{
+        // TODO: ensure it's the correct one?
+        return (struct wlr_hwcomposer_output_hwc2 *)output;
+}
+
 static bool output_set_custom_mode(struct wlr_output *wlr_output, int32_t width,
 		int32_t height, int32_t refresh, int32_t phys_width, int32_t phys_height) {
-	struct wlr_hwcomposer_output *output =
-		(struct wlr_hwcomposer_output *)wlr_output;
-	struct wlr_hwcomposer_backend *hwc_backend = output->hwc_backend;
+    struct wlr_hwcomposer_output *output = (struct wlr_hwcomposer_output *)wlr_output;
+    struct wlr_hwcomposer_backend *hwc_backend = output->hwc_backend;
+    struct wlr_hwcomposer_output_hwc2 *hwc2_output = hwc2_output_from_base(output);
 
-	wlr_log(WLR_INFO, "output_set_custom_mode width=%d height=%d refresh=%d idle_time=%ld",
-		width, height, refresh, hwc_backend->idle_time);
+    wlr_log(WLR_INFO, "output_set_custom_mode width=%d height=%d refresh=%d idle_time=%ld",
+            width, height, refresh, hwc_backend->idle_time);
 
-	if (refresh <= 0) {
-		refresh = HWCOMPOSER_DEFAULT_REFRESH;
-	}
+    const char *custom_refresh_rate_path = "/usr/lib/droidian/device/custom-refresh-rate";
+    FILE *file = fopen(custom_refresh_rate_path, "r");
+    if (file) {
+        int custom_refresh;
+        if (fscanf(file, "%d", &custom_refresh) == 1) {
+            refresh = custom_refresh * 1000;
+        }
+        fclose(file);
+    } else {
+        if (refresh <= 0) {
+            refresh = HWCOMPOSER_DEFAULT_REFRESH;
+        }
+    }
 
-	wlr_egl_destroy_surface(&hwc_backend->egl, output->egl_surface);
+    wlr_egl_destroy_surface(&hwc_backend->egl, output->egl_surface);
 
-	output->egl_surface = eglCreateWindowSurface(hwc_backend->egl.display,
-		hwc_backend->egl.config, (EGLNativeWindowType)output->egl_window, NULL);
-	if (output->egl_surface == EGL_NO_SURFACE) {
-		wlr_log(WLR_ERROR, "Failed to recreate EGL surface");
-		wlr_output_destroy(wlr_output);
-		return false;
-	}
-	wlr_log(WLR_DEBUG, "set_custom_mode: surface created");
+    output->egl_surface = eglCreateWindowSurface(hwc_backend->egl.display,
+            hwc_backend->egl.config, (EGLNativeWindowType)output->egl_window, NULL);
+    if (output->egl_surface == EGL_NO_SURFACE) {
+            wlr_log(WLR_ERROR, "Failed to recreate EGL surface");
+            wlr_output_destroy(wlr_output);
+            return false;
+    }
 
-	output->frame_delay = 1000000 / refresh;
+    wlr_log(WLR_DEBUG, "set_custom_mode: surface created");
 
-	wlr_output_update_custom_mode(&output->wlr_output, width, height, refresh);
-	output->wlr_output.phys_width = phys_width;
-	output->wlr_output.phys_height = phys_height;
-	return true;
+    output->frame_delay = 1000000 / refresh;
+
+    HWC2DisplayConfig config;
+    config.width = width;
+    config.height = height;
+    config.vsyncPeriod = 1000000000LL / refresh;
+    config.dpiX = (float)width / (phys_width / 25.4);
+    config.dpiY = (float)height / (phys_height / 25.4);
+
+    wlr_output_update_custom_mode(&output->wlr_output, width, height, refresh);
+    output->wlr_output.phys_width = phys_width;
+    output->wlr_output.phys_height = phys_height;
+
+    hwc2_compat_display_set_active_config(hwc2_output->hwc2_display, &config);
+
+    return true;
 }
 
 static bool output_test(struct wlr_output *wlr_output) {
