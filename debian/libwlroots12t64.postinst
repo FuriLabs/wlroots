@@ -1,0 +1,5 @@
+#!/bin/sh
+
+TRIPLET=$(awk 'BEGIN { FS = "[ ()-]"; "bash --version" | getline; OFS = "-"; if (/bash/) print $9, $11, $12 }')
+ln -sf /usr/lib/${TRIPLET}/libwlroots.so.12 /usr/lib/${TRIPLET}/libwlroots.so
+exit 0
