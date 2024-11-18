@@ -11,7 +11,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include <dlfcn.h>
-#include <libudev.h>
 #include "time.h"
 #include "backend/hwcomposer.h"
 #include <android-config.h>
@@ -56,9 +55,6 @@ static void backend_destroy(struct wlr_backend *wlr_backend) {
 	wl_list_for_each_safe(output, output_tmp, &hwc_backend->outputs, link) {
 		wlr_output_destroy(&output->wlr_output);
 	}
-
-	if (hwc_backend->udev)
-		udev_unref(hwc_backend->udev);
 
 	wl_signal_emit_mutable(&wlr_backend->events.destroy, hwc_backend);
 
@@ -152,12 +148,6 @@ struct wlr_backend *wlr_hwcomposer_backend_create(struct wl_display *display) {
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	hwc_backend->hwc_vsync_last_timestamp = now.tv_sec * 1000000000 + now.tv_nsec;
 	hwc_backend->hwc_vsync_enabled = false;
-
-	// Create a udev instance for panel brightness control
-	if (getenv("WLR_HWC_SYSFS_BACKLIGHT") != NULL)
-		hwc_backend->udev = udev_new();
-	else
-		hwc_backend->udev = NULL;
 
 	// Register hwc callbacks
 	hwc_backend->impl->register_callbacks(hwc_backend);
