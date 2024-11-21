@@ -111,7 +111,7 @@ static bool output_commit(struct wlr_output *wlr_output,
 		}
 	}
 
-	if (should_schedule_frame || !state->committed || state->committed & WLR_OUTPUT_STATE_TRANSFORM) {
+	if (should_schedule_frame || state->committed) {
 		// FIXME: wlroots submits a presentation event with commit_seq =
 		//  output_commit_seq + 1. For some unknown reason, we aren't
 		// off-by-one and the output commit sequence won't match the feedback's,
