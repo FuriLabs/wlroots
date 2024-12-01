@@ -72,8 +72,6 @@ static bool output_commit(struct wlr_output *wlr_output,
 		(struct wlr_hwcomposer_output *)wlr_output;
 	struct wlr_hwcomposer_backend *hwc_backend = output->hwc_backend;
 
-	bool should_schedule_frame = false;
-
 	if (output->should_destroy) {
 		return false;
 	}
@@ -107,24 +105,21 @@ static bool output_commit(struct wlr_output *wlr_output,
 				wlr_log(WLR_ERROR, "wlr_renderer_swap_buffers failed");
 				return false;
 			}
-			should_schedule_frame = true;
 		}
 	}
 
-	if (should_schedule_frame || state->committed) {
-		// FIXME: wlroots submits a presentation event with commit_seq =
-		//  output_commit_seq + 1. For some unknown reason, we aren't
-		// off-by-one and the output commit sequence won't match the feedback's,
-		// thus presentation feedback will not be reported to the client.
-		// Also we should check why there appears a "ghost" presentation
-		// event just after the good one.
-		struct wlr_output_event_present present_event = {
-			.output = &output->wlr_output,
-			.commit_seq = output->wlr_output.commit_seq,
-		};
-		wlr_output_send_present(&output->wlr_output, &present_event);
-		schedule_frame(output);
-	}
+	// FIXME: wlroots submits a presentation event with commit_seq =
+	//  output_commit_seq + 1. For some unknown reason, we aren't
+	// off-by-one and the output commit sequence won't match the feedback's,
+	// thus presentation feedback will not be reported to the client.
+	// Also we should check why there appears a "ghost" presentation
+	// event just after the good one.
+	struct wlr_output_event_present present_event = {
+		.output = &output->wlr_output,
+		.commit_seq = output->wlr_output.commit_seq,
+	};
+	wlr_output_send_present(&output->wlr_output, &present_event);
+	schedule_frame(output);
 
 	return true;
 }
