@@ -193,7 +193,7 @@ static void surface_finalize_pending(struct wlr_surface *surface) {
 		}
 	}
 
-	if (!pending->viewport.has_src &&
+	/* if (!pending->viewport.has_src &&
 			(pending->buffer_width % pending->scale != 0 ||
 			pending->buffer_height % pending->scale != 0)) {
 		// TODO: send WL_SURFACE_ERROR_INVALID_SIZE error to cursor surfaces
@@ -211,7 +211,7 @@ static void surface_finalize_pending(struct wlr_surface *surface) {
 				"Buffer size (%dx%d) is not divisible by scale (%d)",
 				pending->buffer_width, pending->buffer_height, pending->scale);
 		}
-	}
+	} */
 
 	if (pending->viewport.has_dst) {
 		if (pending->buffer_width == 0 && pending->buffer_height == 0) {
